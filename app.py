@@ -41,7 +41,7 @@ def predict():
     print("📥 Received request:", data)
 
     text = data.get("text")
-    user = data.get("userName")
+    user = data.get("username")
 
     if not text or not user:
         return jsonify({"error": "Both 'text' and 'userName' are required"}), 400
