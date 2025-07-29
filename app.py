@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify
 import joblib
 
 # Load everything
-model = joblib.load("model.pkl")
+model = joblib.load("mlp_task_suggester_model.pkl")
 vectorizer = joblib.load("vectorizer.pkl")
 mlb = joblib.load("label_binarizer.pkl")
 
