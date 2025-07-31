@@ -29,10 +29,24 @@ class Task(Base):
 app = Flask(__name__)
 CORS(app)
 
-# Load ML model
+# Load ML model components
 model = joblib.load("mlp_task_suggester_model.pkl")
 vectorizer = joblib.load("vectorizer.pkl")
 mlb = joblib.load("label_binarizer.pkl")
+
+# Label to expanded description
+TASK_DESCRIPTIONS = {
+    "rest": "Take a break and lie down in a quiet place.",
+    "drink water": "Hydrate with a full glass of clean water.",
+    "check blood sugar": "Use your glucometer to monitor sugar levels.",
+    "eat snack": "Have a healthy snack to stabilize your blood sugar.",
+    "log sugar": "Record your sugar levels in your tracking app or journal.",
+    "meditate": "Spend 5-10 minutes doing deep breathing or meditation.",
+    "take insulin": "Administer your prescribed insulin dosage.",
+    "call doctor": "Contact your healthcare provider for advice.",
+    "walk": "Take a 10-minute walk to regulate your blood sugar.",
+    "relax": "Find a comfortable space and listen to calming music."
+}
 
 @app.route("/")
 def home():
@@ -49,19 +63,21 @@ def predict():
     if not text or not username:
         return jsonify({"error": "Both 'text' and 'username' are required"}), 400
 
-    # Run model prediction
+    # Predict
     X = vectorizer.transform([text])
-    pred = model.predict(X)
-    tasks = mlb.inverse_transform(pred)[0]
+    probs = model.predict_proba(X)
+    threshold = 0.3
+    pred_binary = (probs >= threshold).astype(int)
+    predicted_labels = mlb.inverse_transform(pred_binary)[0]
 
-    # Format and save to DB
+    # Save to DB
     session = SessionLocal()
     task_objects = []
-    for i, task in enumerate(tasks):
+    for label in predicted_labels:
         new_task = Task(
             id=str(uuid.uuid4()),
-            Title=f"Task {i + 1}",
-            Description=task,
+            Title=label,
+            Description=TASK_DESCRIPTIONS.get(label, label),
             LastUpdate=datetime.utcnow(),
             UserName=username
         )
@@ -70,13 +86,7 @@ def predict():
 
     session.commit()
 
-    # Query back the tasks created by this user (optional log)
-    user_tasks = session.query(Task).filter_by(UserName=username).all()
-    print(f"🧾 Saved Tasks for {username}:")
-    for t in user_tasks:
-        print(f"- {t.Title}: {t.Description}")
-
-    # Response for client
+    # Prepare JSON result
     result = [
         {
             "Title": t.Title,
